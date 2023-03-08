@@ -50,8 +50,24 @@ void callback(char *topic, byte *message, unsigned int length){
 }
 
 void parseMQTTJSON(char *message) {
+  int freq, syncword, spreadingFactor, signalBandwidth;
   cJSON *json = cJSON_Parse(message);
+
+  // print JSON
   Serial.println(cJSON_Print(json));
+  // parse and convert freq from json
+  if (cJSON_IsNumber(cJSON_GetObjectItem(json, "freq"))) {
+    freq = cJSON_GetObjectItem(json, "freq")->valueint;
+  }
+  if (cJSON_IsNumber(cJSON_GetObjectItem(json, "syncword"))) {
+    syncword = cJSON_GetObjectItem(json, "syncword")->valueint;
+  }
+  if (cJSON_IsNumber(cJSON_GetObjectItem(json, "spreadingFactor"))) {
+    spreadingFactor = cJSON_GetObjectItem(json, "spreadingFactor")->valueint;
+  }
+  if (cJSON_IsNumber(cJSON_GetObjectItem(json, "signalBandwidth"))) {
+    signalBandwidth = cJSON_GetObjectItem(json, "signalBandwidth")->valueint;
+  }
   // do not forget to free
   cJSON_Delete(json);
 }
