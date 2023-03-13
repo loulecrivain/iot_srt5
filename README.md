@@ -17,5 +17,5 @@ Le sketch présent dans le dépôt correspond au sub MQTT, le groupe en collabor
 Les étapes de réalisation effectuées/à faire sont les suivantes:
 - [x] connexion à un AP wifi et sub ou pub sur le topic MQTT srt/LE
 - [x] mise en place de la logique d'échange d'informations structurées de paramétrage LoRa
-- [ ] configuration de LoRa
-- [ ] échange de messages sur LoRa
+- [x] configuration de LoRa
+- [x] envoi de messages sur LoRa
