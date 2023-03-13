@@ -1,14 +1,20 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <cJSON.h>
-#include <SPI.h>
-#include <LoRa.h>
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+#include <BLEAdvertisedDevice.h>
 
-#define DI0     26
-#define RST     14
-#define MISO    19
-#define MOSI    27
-#define SS      18
+int scanTime = 5;
+BLEScan* pBLEScan;
+
+class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
+  void onResult(BLEAdvertisedDevice advertisedDevice){
+    Serial.printf("Advertised Device %s \n", advertisedDevice.toString().c_str());
+  }
+};
+
 
 const int MAXCHAR = 200;
 char tmp[MAXCHAR];
@@ -21,19 +27,6 @@ const char *mqtt_client_id="esp32mqtt-el";
 const char *mqtt_topic="srt/lesbv";
 const int  mqtt_reconnect_ms_delay=5000;
 
-struct LoRaParams {
-  int f;  // frequency
-  int sf; // spreading factor
-  int sb; // signal bandwidth
-  int sw;  // syncword
-} lora_params;
-
-union pack
-{
-  uint8_t frame[16];
-  float data[4];
-} sdp;
-
 WiFiClient espClient;
 PubSubClient client(espClient);
 
@@ -42,9 +35,12 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-  pinMode(DI0,INPUT);
-  SPI.begin(SCK,MISO,MOSI,SS);
-  LoRa.setPins(SS,RST,DI0);
+  BLEDevice::init(mqtt_client_id);
+  pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setActiveScan(true);
+  pBLEScan->setInterval(100);
+  pBLEScan->setWindow(99);
 }
 
 void setup_wifi(){
@@ -60,7 +56,7 @@ void setup_wifi(){
 
 void callback(char *topic, byte *message, unsigned int length){
   int i;
-  struct LoRaParams *lora_params;
+  //struct LoRaParams *lora_params;
 
   Serial.print("[MQTT] message arrived on topic ");
   Serial.print(topic);
@@ -71,41 +67,17 @@ void callback(char *topic, byte *message, unsigned int length){
   }
 
   tmp[i+1] += '\0';
-  lora_params = parseMQTTJSON(tmp);
-  setupLoRa(lora_params);
-  sendMsgLoRa();
+  //lora_params = parseMQTTJSON(tmp);
 }
 
-void sendMsgLoRa() {
-  float d1=420,d2 = 64;
-  Serial.println("[LoRa] Sending message");
-  LoRa.beginPacket();
-  sdp.data[0]=d1;
-  sdp.data[1]=d2;
-  LoRa.write(sdp.frame,16);
-  LoRa.endPacket();
-}
-
-void setupLoRa(struct LoRaParams *lora_params) {
-  if (!LoRa.begin(lora_params->f)){
-    Serial.println("[LoRa] Start failed!");
-    while(1);
-  }
-  LoRa.setSpreadingFactor(lora_params->sf);
-  LoRa.setSignalBandwidth(lora_params->sb);
-  sprintf(tmp,"[LoRa] started with f=%d, sf=%d, sb=%d\n", lora_params->f,
-                                                          lora_params->sf,
-                                                          lora_params->sb);
-  Serial.println(tmp);
-}
-
-struct LoRaParams *parseMQTTJSON(char *message) {
+void parseMQTTJSON(char *message) {
   int freq, syncword, spreadingFactor, signalBandwidth;
   cJSON *json = cJSON_Parse(message);
 
   // print JSON
   Serial.println(cJSON_Print(json));
   // parse and convert freq from json
+  /* 
   if (cJSON_IsNumber(cJSON_GetObjectItem(json, "freq"))) {
     lora_params.f = cJSON_GetObjectItem(json, "freq")->valueint;
   }
@@ -118,9 +90,10 @@ struct LoRaParams *parseMQTTJSON(char *message) {
   if (cJSON_IsNumber(cJSON_GetObjectItem(json, "signalBandwidth"))) {
     lora_params.sb = cJSON_GetObjectItem(json, "signalBandwidth")->valueint;
   }
+  */
   // do not forget to free
   cJSON_Delete(json);
-  return &lora_params;
+  // return &lora_params;
 }
 
 void mqtt_reconnect() {
@@ -144,4 +117,10 @@ void loop() {
     mqtt_reconnect();
   }
   client.loop();
+  BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
+  Serial.print("[BLE] Devices found: ");
+  Serial.print(foundDevices.getCount());
+  Serial.print("[BLE] Scan done");
+  pBLEScan->clearResults();
+  delay(1000);
 }
